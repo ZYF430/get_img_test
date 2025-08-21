@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CNU图片下载器</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif;
+            margin: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .url-input {
+            width: 70%;
+            padding: 15px;
+            margin-right: 10px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        .url-input:focus {
+            border-color: #667eea;
+            outline: none;
+        }
+        .btn {
+            padding: 15px 25px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+        .btn:active {
+            transform: translateY(0);
+        }
+        .image-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            margin: 25px 0;
+        }
+        .image-item {
+            border: 2px solid #e1e5e9;
+            padding: 20px;
+            text-align: center;
+            border-radius: 12px;
+            background: white;
+            transition: all 0.3s;
+        }
+        .image-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        .image-item.selected {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #f8f9ff 0%, #e8f0ff 100%);
+        }
+        .thumb {
+            width: 100%;
+            height: 140px;
+            object-fit: cover;
+            border-radius: 8px;
+            border: 2px solid #f0f0f0;
+        }
+        .progress-container {
+            margin: 25px 0;
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 25px;
+            background: #e9ecef;
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 15px;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            border-radius: 12px;
+            transition: width 0.5s ease;
+            position: relative;
+        }
+        .status-text {
+            text-align: center;
+            font-weight: bold;
+            color: #495057;
+            font-size: 16px;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 28px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .control-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin: 25px 0;
+            flex-wrap: wrap;
+        }
+        .btn-secondary {
+            background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+        }
+        .btn-success {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .debug-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📷 CNU图片下载器</h1>
+
+        <div style="display: flex; margin-bottom: 25px; align-items: center;">
+            <input type="url" class="url-input" placeholder="请输入CNU作品网址，如：http://www.cnu.cc/works/670875" id="urlInput">
+            <button class="btn" onclick="fetchImages()" id="fetchBtn">
+                <span id="fetchText">获取图片</span>
+                <span id="fetchLoading" class="loading" style="display: none;"></span>
+            </button>
+        </div>
+
+        <div class="progress-container" id="progressArea" style="display: none;">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressBar" style="width: 0%"></div>
+            </div>
+            <div class="status-text" id="statusText">正在处理...</div>
+        </div>
+
+        <div id="imageList" class="image-grid"></div>
+
+        <div class="control-buttons" id="controlArea" style="display: none;">
+            <button class="btn" onclick="selectAll()">全选</button>
+            <button class="btn btn-secondary" onclick="selectNone()">全不选</button>
+            <button class="btn btn-success" onclick="downloadSelected()">下载选中</button>
+        </div>
+
+        <div style="text-align: center; margin-top: 30px; color: #6c757d; font-size: 14px;">
+            <p>💡 后端状态: <span id="backendStatus">正在检查...</span></p>
+            <p>后端地址: <span id="backendUrl"></span></p>
+            <button onclick="testConnection()" class="btn" style="margin: 5px;">测试连接</button>
+            <button onclick="showDebugInfo()" class="btn-secondary" style="margin: 5px;">显示调试信息</button>
+        </div>
+
+        <div id="debugInfo" class="debug-info" style="display: none;">
+            <h4>调试信息</h4>
+            <div id="debugContent"></div>
+        </div>
+    </div>
+
+    <script>
+        const BASE_URL = window.location.origin;
+        let imagesData = [];
+        let selectedImages = new Set();
+        let debugLogs = [];
+
+        function addDebugLog(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            debugLogs.push(`[${timestamp}] ${message}`);
+            if (debugLogs.length > 20) debugLogs.shift();
+            updateDebugDisplay();
+        }
+
+        function updateDebugDisplay() {
+            document.getElementById('debugContent').innerHTML = debugLogs.join('<br>');
+        }
+
+        function showDebugInfo() {
+            const debugDiv = document.getElementById('debugInfo');
+            debugDiv.style.display = debugDiv.style.display === 'none' ? 'block' : 'none';
+        }
+
+        async function testConnection() {
+            addDebugLog('开始测试后端连接...');
+            showProgress('测试连接中...', 30);
+
+            try {
+                const response = await fetch('/api/health', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    addDebugLog(`后端连接成功: ${data.message}`);
+                    document.getElementById('backendStatus').textContent = '✅ 连接正常';
+                    document.getElementById('backendStatus').style.color = 'green';
+                    showProgress('✅ 连接成功！', 100);
+                } else {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+            } catch (error) {
+                addDebugLog(`后端连接失败: ${error.message}`);
+                document.getElementById('backendStatus').textContent = '❌ 连接失败';
+                document.getElementById('backendStatus').style.color = 'red';
+                showProgress('❌ 连接失败', 0);
+            }
+
+            setTimeout(hideProgress, 2000);
+        }
+
+        function showLoading(show) {
+            document.getElementById('fetchText').style.display = show ? 'none' : 'inline';
+            document.getElementById('fetchLoading').style.display = show ? 'inline-block' : 'none';
+            document.getElementById('fetchBtn').disabled = show;
+        }
+
+        function showProgress(text, percent) {
+            const progressArea = document.getElementById('progressArea');
+            const progressBar = document.getElementById('progressBar');
+            const statusText = document.getElementById('statusText');
+
+            progressArea.style.display = 'block';
+            statusText.textContent = text;
+            progressBar.style.width = percent + '%';
+        }
+
+        function hideProgress() {
+            document.getElementById('progressArea').style.display = 'none';
+        }
+
+        async function fetchImages() {
+            const url = document.getElementById('urlInput').value.trim();
+            if (!url) {
+                alert('请输入CNU作品网址');
+                return;
+            }
+
+            addDebugLog(`开始获取图片，URL: ${url}`);
+            showLoading(true);
+            showProgress('正在连接服务器...', 20);
+
+            try {
+                const response = await fetch('/api/get-images', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ url: url })
+                });
+
+                addDebugLog(`API响应状态: ${response.status}`);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    addDebugLog(`API错误响应: ${errorText}`);
+                    throw new Error(`HTTP错误: ${response.status} - ${errorText}`);
+                }
+
+                const data = await response.json();
+                addDebugLog(`API响应数据: ${JSON.stringify(data).substring(0, 200)}...`);
+
+                if (data.success) {
+                    imagesData = data.images;
+                    if (imagesData.length > 0) {
+                        addDebugLog(`成功获取 ${imagesData.length} 张图片`);
+                        displayImages();
+                        showProgress(`成功找到 ${imagesData.length} 张图片`, 100);
+                        document.getElementById('controlArea').style.display = 'flex';
+
+                        setTimeout(() => {
+                            hideProgress();
+                            showLoading(false);
+                        }, 1500);
+                    } else {
+                        throw new Error('未找到图片数据');
+                    }
+                } else {
+                    throw new Error(data.error || '获取图片失败');
+                }
+            } catch (error) {
+                addDebugLog(`获取图片失败: ${error.message}`);
+                showProgress('错误: ' + error.message, 0);
+                showLoading(false);
+                setTimeout(() => {
+                    hideProgress();
+                    alert('获取失败: ' + error.message);
+                }, 2000);
+            }
+        }
+
+        // 其他函数保持不变（displayImages, toggleSelect, selectAll, selectNone, updateSelectionStyle, updateCheckboxes, downloadSelected）
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('backendUrl').textContent = BASE_URL;
+            addDebugLog('页面加载完成');
+            addDebugLog(`当前域名: ${BASE_URL}`);
+
+            // 自动测试连接
+            testConnection();
+
+            // 回车键触发获取
+            document.getElementById('urlInput').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    fetchImages();
+                }
+            });
+        });
+
+        // 保持其他函数不变...
+        function displayImages() {
+            const container = document.getElementById('imageList');
+            container.innerHTML = '';
+
+            imagesData.forEach((imgData, index) => {
+                const item = document.createElement('div');
+                item.className = 'image-item';
+                item.innerHTML = `
+                    <img src="${imgData.url}" class="thumb"
+                         onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjEyIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiBmaWxsPSIjNjY2Ij7lm77niYfkuIDkuKrkuJPpgIk8L3RleHQ+PC9zdmc+'"
+                         alt="图片 ${index + 1}">
+                    <div style="margin-top: 15px;">
+                        <input type="checkbox" id="img-${index}" onchange="toggleSelect(${index})">
+                        <label for="img-${index}" style="cursor: pointer;">图片 ${index + 1}</label>
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        function toggleSelect(index) {
+            if (selectedImages.has(index)) {
+                selectedImages.delete(index);
+            } else {
+                selectedImages.add(index);
+            }
+            updateSelectionStyle();
+        }
+
+        function selectAll() {
+            imagesData.forEach((_, index) => selectedImages.add(index));
+            updateSelectionStyle();
+            updateCheckboxes();
+        }
+
+        function selectNone() {
+            selectedImages.clear();
+            updateSelectionStyle();
+            updateCheckboxes();
+        }
+
+        function updateSelectionStyle() {
+            const items = document.querySelectorAll('.image-item');
+            items.forEach((item, index) => {
+                item.classList.toggle('selected', selectedImages.has(index));
+            });
+        }
+
+        function updateCheckboxes() {
+            imagesData.forEach((_, index) => {
+                const checkbox = document.getElementById(`img-${index}`);
+                if (checkbox) {
+                    checkbox.checked = selectedImages.has(index);
+                }
+            });
+        }
+
+        async function downloadSelected() {
+            if (selectedImages.size === 0) {
+                alert('请先选择要下载的图片');
+                return;
+            }
+
+            showProgress('开始下载图片...', 0);
+
+            const selectedArray = Array.from(selectedImages);
+            let successCount = 0;
+
+            for (let i = 0; i < selectedArray.length; i++) {
+                const index = selectedArray[i];
+                const imgData = imagesData[index];
+
+                try {
+                    showProgress(`下载中 (${i + 1}/${selectedArray.length})...`, (i / selectedArray.length) * 100);
+
+                    const downloadUrl = `/api/download-image?url=${encodeURIComponent(imgData.url)}`;
+                    const a = document.createElement('a');
+                    a.href = downloadUrl;
+                    a.download = `CNU图片_${index + 1}.jpg`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+
+                    successCount++;
+
+                    await new Promise(resolve => setTimeout(resolve, 800));
+
+                } catch (error) {
+                    console.error(`下载图片 ${index + 1} 失败:`, error);
+                }
+            }
+
+            showProgress(`下载完成！成功下载 ${successCount} 张图片`, 100);
+
+            setTimeout(() => {
+                hideProgress();
+                if (successCount > 0) {
+                    alert(`🎉 下载完成！成功下载 ${successCount} 张图片`);
+                } else {
+                    alert('❌ 下载失败，请检查网络连接');
+                }
+            }, 2000);
+        }
+    </script>
+</body>
+</html>
